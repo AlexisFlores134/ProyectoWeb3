@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="text-center mb-4">
       <i class="fas fa-fingerprint fa-3x mb-3" style="color: #4fc3f7;"></i>
-      <h2 class="logo-text">ACCESS CONTROL</h2>
+      <h2 class="logo-text">ACCESO RFID</h2>
       <p class="text-light">Sistema de Control de Acceso RFID</p>
     </div>
     

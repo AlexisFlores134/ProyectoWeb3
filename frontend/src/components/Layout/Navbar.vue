@@ -3,7 +3,7 @@
     <div class="container-fluid">
       <a class="navbar-brand" href="#">
         <i class="fas fa-fingerprint me-2"></i>
-        <span class="logo-text">ACCESS PRO</span>
+        <span class="logo-text">RFID</span>
       </a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
@@ -22,7 +22,7 @@
           </li>
           <li class="nav-item">
             <router-link class="nav-link" to="/history">
-              <i class="fas fa-history me-1"></i> Historial
+              <i class="fas fa-history me-1"></i> Accesos
             </router-link>
           </li>
           <li class="nav-item">

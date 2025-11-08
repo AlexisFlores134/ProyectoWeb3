@@ -9,15 +9,7 @@ class AccesoController extends Controller
 {
     public function index(Request $request)
     {
-        $usuario = $request->usuario;
-        
         $query = Acceso::with(['tarjetaRfid.usuario']);
-
-        if (!$usuario->esAdministrador()) {
-            $query->whereHas('tarjetaRfid', function($q) use ($usuario) {
-                $q->where('usuario_id', $usuario->id);
-            });
-        }
 
         if ($request->has('fecha_inicio') && $request->has('fecha_fin')) {
             $query->whereBetween('fecha_acceso', [
@@ -26,7 +18,7 @@ class AccesoController extends Controller
             ]);
         }
 
-        if ($request->has('usuario_id') && $usuario->esAdministrador()) {
+        if ($request->has('usuario_id')) {
             $query->whereHas('tarjetaRfid.usuario', function($q) use ($request) {
                 $q->where('id', $request->usuario_id);
             });
@@ -43,15 +35,7 @@ class AccesoController extends Controller
 
     public function estadisticas(Request $request)
     {
-        $usuario = $request->usuario;
-        
         $query = Acceso::query();
-
-        if (!$usuario->esAdministrador()) {
-            $query->whereHas('tarjetaRfid', function($q) use ($usuario) {
-                $q->where('usuario_id', $usuario->id);
-            });
-        }
 
         $totalAccesos = $query->count();
         $accesosPermitidos = $query->clone()->where('acceso_permitido', true)->count();
