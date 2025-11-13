@@ -4,56 +4,45 @@ namespace App\Http\Controllers;
 
 use App\Models\Acceso;
 use Illuminate\Http\Request;
-
 class AccesoController extends Controller
 {
+
+    /**
+     * Muestra una lista de los recursos.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
     public function index(Request $request)
     {
-        $query = Acceso::with(['tarjetaRfid.usuario']);
-
-        if ($request->has('fecha_inicio') && $request->has('fecha_fin')) {
-            $query->whereBetween('fecha_acceso', [
-                $request->fecha_inicio,
-                $request->fecha_fin
-            ]);
+        $query = Acceso::with('tarjetaRfid.usuario');
+        if ($request->filled('start_date')) {
+            $query->whereDate('fecha_acceso', '>=', $request->start_date);
         }
-
-        if ($request->has('usuario_id')) {
-            $query->whereHas('tarjetaRfid.usuario', function($q) use ($request) {
-                $q->where('id', $request->usuario_id);
-            });
+        if ($request->filled('end_date')) {
+            $query->whereDate('fecha_acceso', '<=', $request->end_date);
         }
-
-        if ($request->has('ubicacion')) {
-            $query->where('ubicacion', 'like', '%' . $request->ubicacion . '%');
-        }
-
-        $accesos = $query->orderBy('fecha_acceso', 'desc')->paginate(50);
+        $accesos = $query->orderBy('fecha_acceso', 'desc')->get();
 
         return response()->json($accesos);
     }
-
-    public function estadisticas(Request $request)
+    /**
+     * Calcula y devuelve estadísticas de acceso.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function estadisticas()
     {
-        $query = Acceso::query();
+        // Contamos los accesos permitidos
+        $permitidos = Acceso::where('acceso_permitido', true)->count();
+        
+        // Contamos los accesos denegados
+        $denegados = Acceso::where('acceso_permitido', false)->count();
 
-        $totalAccesos = $query->count();
-        $accesosPermitidos = $query->clone()->where('acceso_permitido', true)->count();
-        $accesosDenegados = $totalAccesos - $accesosPermitidos;
-
-        $estadisticasUbicacion = $query->clone()
-            ->select('ubicacion')
-            ->selectRaw('COUNT(*) as total')
-            ->selectRaw('SUM(CASE WHEN acceso_permitido = true THEN 1 ELSE 0 END) as permitidos')
-            ->selectRaw('SUM(CASE WHEN acceso_permitido = false THEN 1 ELSE 0 END) as denegados')
-            ->groupBy('ubicacion')
-            ->get();
-
+        // Devolvemos la data en un formato simple
         return response()->json([
-            'total_accesos' => $totalAccesos,
-            'accesos_permitidos' => $accesosPermitidos,
-            'accesos_denegados' => $accesosDenegados,
-            'estadisticas_ubicacion' => $estadisticasUbicacion
+            'permitidos' => $permitidos,
+            'denegados' => $denegados
         ]);
     }
 }

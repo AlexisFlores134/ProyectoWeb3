@@ -2,85 +2,55 @@
   <div>
     <Navbar />
     <div class="container main-container">
-      <h2 class="text-center mb-4">Panel de Control Principal</h2>
-      
-      <!-- Estadísticas -->
-      <div class="row mb-4">
-        <div class="col-md-3 mb-3" v-for="stat in stats" :key="stat.id">
-          <div class="stats-box" :class="`stats-box-${stat.id}`">
-            <i :class="stat.icon"></i>
-            <h3>{{ stat.value }}</h3>
-            <p>{{ stat.label }}</p>
-          </div>
+      <h2 class="text-center mb-4" style="color: white;">Dashboard</h2>
+
+      <div v-if="loading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Cargando...</span>
         </div>
+        <p class="mt-2">Cargando datos del dashboard...</p>
       </div>
-      
-      <div class="row">
-        <!-- Accesos Recientes -->
-        <div class="col-md-8">
-          <div class="card-custom">
-            <div class="card-header">
-              <h5 class="mb-0"><i class="fas fa-history me-2"></i>Accesos Recientes</h5>
-            </div>
-            <div class="card-body">
-              <div class="table-responsive">
-                <table class="table table-hover">
-                  <thead>
-                    <tr>
-                      <th>Hora</th>
-                      <th>Usuario</th>
-                      <th>Ubicación</th>
-                      <th>Resultado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="access in recentAccess" :key="access.id">
-                      <td>{{ formatTime(access.fecha_acceso) }}</td>
-                      <td>{{ access.usuario_nombre || 'N/A' }}</td>
-                      <td>{{ access.ubicacion }}</td>
-                      <td :class="access.acceso_permitido ? 'access-granted' : 'access-denied'">
-                        {{ access.acceso_permitido ? 'Permitido' : 'Denegado' }}
-                      </td>
-                    </tr>
-                    <tr v-if="recentAccess.length === 0">
-                      <td colspan="4" class="text-center text-muted">
-                        No hay accesos recientes
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Información del Sistema -->
-        <div class="col-md-4">
-          <div class="card-custom">
-            <div class="card-header">
-              <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Información del Sistema</h5>
-            </div>
-            <div class="card-body">
-              <div class="system-info">
-                <div class="info-item">
-                  <i class="fas fa-microchip"></i>
-                  <span>Estado: <strong class="text-success">En línea</strong></span>
-                </div>
-                <div class="info-item">
-                  <i class="fas fa-clock"></i>
-                  <span>Última actualización: {{ lastUpdate }}</span>
-                </div>
-                <div class="info-item">
-                  <i class="fas fa-database"></i>
-                  <span>Tarjetas activas: {{ activeCards }}/{{ totalCards }}</span>
-                </div>
-                <div class="info-item">
-                  <i class="fas fa-users"></i>
-                  <span>Usuarios registrados: {{ totalUsers }}</span>
+
+      <div v-else-if="error" class="alert alert-danger">
+        {{ error }}
+      </div>
+
+      <div v-else>
+        <div class="row">
+          
+          <div class="col-lg-7 mb-4">
+            <div class="card-custom h-100">
+              <div class="card-body">
+                <h5 class="card-title text-center mb-3">Estadísticas de Acceso</h5>
+                <div style="height: 350px;">
+                  <canvas ref="pieChart" v-if="!loading && !error"></canvas>
                 </div>
               </div>
             </div>
           </div>
+
+          <div class="col-lg-5 mb-4">
+            <div class="card-custom h-100">
+              <div class="card-body">
+                <h5 class="card-title text-center mb-3">Últimos 5 Accesos</h5>
+                <div v-if="recentAccess.length === 0" class="text-center text-muted py-3">
+                  No hay accesos recientes.
+                </div>
+                <ul v-else class="list-group list-group-flush">
+                  <li v-for="access in recentAccess" :key="access.id" class="list-group-item bg-transparent text-light border-secondary d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>{{ access.tarjeta_rfid?.usuario?.nombre || 'N/A' }}</strong>
+                      <small class="d-block text-muted">{{ formatDate(access.fecha_acceso) }}</small>
+                    </div>
+                    <span class="fw-bold" :class="access.acceso_permitido ? 'access-granted' : 'access-denied'">
+                      {{ access.acceso_permitido ? 'Permitido' : 'Denegado' }}
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
         </div>
       </div>
     </div>
@@ -89,7 +59,11 @@
 
 <script>
 import Navbar from '@/components/Layout/Navbar.vue'
-import { accessAPI } from '@/services/api'
+import { accessAPI } from '@/services/api' 
+import { Chart, registerables } from 'chart.js'
+
+// Registrar todos los componentes de Chart.js
+Chart.register(...registerables)
 
 export default {
   name: 'Dashboard',
@@ -98,253 +72,292 @@ export default {
   },
   data() {
     return {
-      stats: [
-        { id: 1, icon: 'fas fa-id-card', value: '0', label: 'Tarjetas Registradas' },
-        { id: 2, icon: 'fas fa-check-circle', value: '0', label: 'Accesos Permitidos' },
-        { id: 3, icon: 'fas fa-chart-bar', value: '0', label: 'Accesos Hoy' },
-        { id: 4, icon: 'fas fa-times-circle', value: '0', label: 'Accesos Denegados' }
-      ],
       recentAccess: [],
-      lastAccess: null,
-      pollingInterval: null,
-      lastUpdate: 'Cargando...',
-      activeCards: 0,
-      totalCards: 0,
-      totalUsers: 0
+      loading: false,
+      error: null,
+      pieChart: null,
+      statsData: null
     }
   },
   async mounted() {
     await this.loadInitialData()
-    // Iniciar polling cada 5 segundos
-    this.startPolling()
   },
   beforeUnmount() {
-    this.stopPolling()
+    // Destruir el chart cuando el componente se desmonte
+    if (this.pieChart) {
+      this.pieChart.destroy()
+    }
+  },
+  watch: {
+    // Observar cambios en statsData y crear el chart cuando los datos estén listos
+    statsData: {
+      handler(newStats) {
+        if (newStats !== null) {
+          this.$nextTick(() => {
+            this.createPieChart(newStats)
+          })
+        }
+      },
+      immediate: false
+    }
   },
   methods: {
     async loadInitialData() {
-      try {
-        // Cargar accesos recientes
-        const response = await accessAPI.getRecentAccess()
-        this.recentAccess = this.formatAccessData(response.data)
-        
-        // Cargar estadísticas
-        const statsResponse = await accessAPI.getStats()
-        this.updateStats(statsResponse.data)
-        
-        // Cargar información del sistema
-        await this.loadSystemInfo()
-        
-        this.updateLastUpdateTime()
-        
-      } catch (error) {
-        console.error('Error loading initial data:', error)
-        this.recentAccess = []
-      }
-    },
-    
-    async loadSystemInfo() {
-      try {
-        // Simular datos del sistema (deberías tener endpoints para esto)
-        const cardsResponse = await accessAPI.getCardsInfo()
-        this.totalCards = cardsResponse.data.total || 9
-        this.activeCards = cardsResponse.data.active || 7
-        
-        const usersResponse = await accessAPI.getUsersInfo()
-        this.totalUsers = usersResponse.data.total || 10
-        
-      } catch (error) {
-        console.error('Error loading system info:', error)
-        // Valores por defecto basados en tu BD
-        this.totalCards = 9
-        this.activeCards = 7
-        this.totalUsers = 10
-      }
-    },
-    
-    formatAccessData(accessData) {
-      if (!accessData || !Array.isArray(accessData)) return []
+      this.loading = true
+      this.error = null
+      this.statsData = null
       
-      return accessData.map(access => ({
-        id: access.id,
-        fecha_acceso: access.fecha_acceso,
-        usuario_nombre: access.usuario?.nombre || access.tarjeta_rfid?.usuario?.nombre || 'Usuario no encontrado',
-        ubicacion: access.ubicacion,
-        acceso_permitido: access.acceso_permitido
-      }))
+      let historyError = null;
+      let statsError = null;
+
+      // Cargar Accesos Recientes
+      try {
+        const historyResponse = await accessAPI.getHistory();
+        this.recentAccess = historyResponse.data.slice(0, 5);
+      } catch (error) {
+        console.error('Error loading history:', error);
+        historyError = 'No se pudieron cargar los accesos recientes.';
+      }
+
+      // Cargar Estadísticas de la Gráfica
+      try {
+        const statsResponse = await accessAPI.getStats();
+        this.statsData = statsResponse.data;
+        // El chart se creará automáticamente mediante el watcher
+      } catch (error) {
+        console.error('Error loading stats:', error);
+        statsError = 'No se pudieron cargar las estadísticas.';
+        this.statsData = { error: true };
+      }
+      
+      // Manejar el estado de error general
+      if(historyError && statsError) {
+        this.error = 'Error al cargar el dashboard. Ambas secciones fallaron.';
+      } else if (historyError) {
+        this.error = historyError; 
+      } else if (statsError) {
+         this.error = statsError; 
+      }
+
+      this.loading = false
     },
-    
-    startPolling() {
-      this.pollingInterval = setInterval(async () => {
-        await this.refreshData()
-      }, 5000)
-    },
-    
-    stopPolling() {
-      if (this.pollingInterval) {
-        clearInterval(this.pollingInterval)
-        this.pollingInterval = null
+
+    createPieChart(stats) {
+      // Verificar que el canvas existe
+      if (!this.$refs.pieChart) {
+        console.warn('Canvas reference not found, retrying...');
+        setTimeout(() => this.createPieChart(stats), 100);
+        return;
+      }
+
+      // Destruir chart anterior si existe
+      if (this.pieChart) {
+        this.pieChart.destroy()
+      }
+
+      const ctx = this.$refs.pieChart.getContext('2d')
+      
+      // Si hay error en los datos
+      if (stats.error) {
+        this.pieChart = new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: ['Error al cargar'],
+            datasets: [{
+              backgroundColor: ['#ff5252'],
+              borderColor: '#d32f2f',
+              borderWidth: 1,
+              data: [1]
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { 
+                labels: { 
+                  color: '#ffffff',
+                  font: { size: 14 }
+                } 
+              },
+              tooltip: {
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                backgroundColor: 'rgba(0, 0, 0, 0.8)'
+              }
+            }
+          }
+        })
+        return;
+      }
+      
+      // Si no hay datos
+      if (stats.permitidos === 0 && stats.denegados === 0) {
+        this.pieChart = new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: ['Sin Datos'],
+            datasets: [{
+              backgroundColor: ['#555'],
+              borderColor: '#777',
+              borderWidth: 1,
+              data: [1]
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { 
+                labels: { 
+                  color: '#ffffff',
+                  font: { size: 14 }
+                } 
+              },
+              tooltip: {
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                backgroundColor: 'rgba(0, 0, 0, 0.8)'
+              },
+              title: {
+                display: true,
+                text: 'Comparativa de Accesos Totales',
+                color: '#ffffff',
+                font: { size: 16 }
+              }
+            }
+          }
+        })
+      } else {
+        // Datos normales
+        this.pieChart = new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: ['Accesos Permitidos', 'Accesos Denegados'],
+            datasets: [{
+              backgroundColor: ['#00e676', '#ff5252'],
+              borderColor: ['#00c853', '#d32f2f'],
+              borderWidth: 2,
+              data: [stats.permitidos, stats.denegados]
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { 
+                labels: { 
+                  color: '#ffffff',
+                  font: { size: 14 }
+                } 
+              },
+              tooltip: {
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                callbacks: {
+                  label: function(context) {
+                    const label = context.label || '';
+                    const value = context.parsed;
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = Math.round((value / total) * 100);
+                    return `${label}: ${value} (${percentage}%)`;
+                  }
+                }
+              },
+              title: {
+                display: true,
+                text: 'Comparativa de Accesos Totales',
+                color: '#ffffff',
+                font: { size: 16 }
+              }
+            }
+          }
+        })
       }
     },
-    
-    async refreshData() {
+
+    formatDate(dateString) {
+      if (!dateString) return 'N/A';
+      
       try {
-        const response = await accessAPI.getRecentAccess()
-        const newAccess = this.formatAccessData(response.data)
+        const date = new Date(dateString);
         
-        // Verificar si hay nuevos accesos
-        if (newAccess.length > 0 && newAccess[0].id !== this.recentAccess[0]?.id) {
-          this.recentAccess = newAccess
-          this.lastAccess = newAccess[0]
-          this.updateLiveStats(newAccess[0])
-          this.updateLastUpdateTime()
+        if (isNaN(date.getTime())) {
+          const utcDate = new Date(dateString + ' UTC');
+          return isNaN(utcDate.getTime()) 
+            ? 'Fecha inválida' 
+            : utcDate.toLocaleString('es-ES', { 
+                day: '2-digit', 
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit' 
+              });
         }
         
+        return date.toLocaleString('es-ES', { 
+          day: '2-digit', 
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit' 
+        });
       } catch (error) {
-        console.error('Error refreshing data:', error)
+        console.error('Error formatting date:', error);
+        return 'Fecha inválida';
       }
-    },
-    
-    updateStats(statsData) {
-      // Actualizar basado en datos reales de la API
-      this.stats[0].value = statsData.total_tarjetas || '9'
-      this.stats[1].value = statsData.accesos_permitidos || '34'
-      this.stats[2].value = statsData.total_accesos || '52'
-      this.stats[3].value = statsData.accesos_denegados || '18'
-    },
-    
-    updateLiveStats(access) {
-      // Actualizar estadísticas cuando hay nuevo acceso
-      if (access.acceso_permitido) {
-        this.stats[1].value = parseInt(this.stats[1].value) + 1
-      } else {
-        this.stats[3].value = parseInt(this.stats[3].value) + 1
-      }
-      this.stats[2].value = parseInt(this.stats[2].value) + 1
-    },
-    
-    updateLastUpdateTime() {
-      this.lastUpdate = new Date().toLocaleTimeString('es-ES')
-    },
-    
-    formatTime(dateString) {
-      if (!dateString) return 'N/A'
-      return new Date(dateString).toLocaleTimeString('es-ES')
     }
   }
 }
 </script>
 
 <style scoped>
-.stats-box {
-  text-align: center;
-  padding: 20px;
-  border-radius: 16px;
-  color: white;
+/* Estilos para el dashboard */
+.main-container {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+.card-custom {
   background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
   backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
+  color: white;
 }
 
-.stats-box:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+.list-group-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: transparent !important;
 }
 
-.stats-box i {
-  font-size: 2.5rem;
-  margin-bottom: 15px;
-  color: rgba(255, 255, 255, 0.9);
+.list-group-item:last-child {
+  border-bottom: 0 !important;
 }
 
-.stats-box-1 {
-  background: linear-gradient(135deg, #3949ab, #1a237e);
-}
-
-.stats-box-2 {
-  background: linear-gradient(135deg, #00c853, #009624);
-}
-
-.stats-box-3 {
-  background: linear-gradient(135deg, #ff9100, #f57c00);
-}
-
-.stats-box-4 {
-  background: linear-gradient(135deg, #ff1744, #d50000);
-}
-
+/* Colores de acceso */
 .access-granted {
   color: #00e676;
-  font-weight: 600;
 }
 
 .access-denied {
   color: #ff5252;
+}
+
+/* Mejoras para la gráfica */
+.card-title {
   font-weight: 600;
+  font-size: 1.2rem;
 }
 
-.card-header {
-  background: rgba(26, 35, 126, 0.7);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 16px 16px 0 0 !important;
-  padding: 15px 20px;
-  font-weight: 600;
+.text-muted {
+  color: rgba(255, 255, 255, 0.6) !important;
 }
 
-.main-container {
-  background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(12px);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(0, 0, 10, 0.36);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  margin: 30px auto;
-  padding: 25px;
-  overflow: hidden;
-}
-
-.system-info {
-  padding: 10px 0;
-}
-
-.info-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.info-item:last-child {
-  border-bottom: none;
-}
-
-.info-item i {
-  width: 24px;
-  margin-right: 12px;
-  color: #3949ab;
-}
-
-.info-item span {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.table {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.table th {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-  font-weight: 600;
-}
-
-.table td {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  vertical-align: middle;
-}
-
-.card-custom {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 20px;
+/* Asegurar que el canvas ocupe todo el espacio */
+canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 </style>

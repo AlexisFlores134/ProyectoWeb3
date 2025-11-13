@@ -30,15 +30,25 @@ class TarjetaRfidController extends Controller
         return response()->json($tarjeta, 201);
     }
 
-    public function update(Request $request, TarjetaRfid $tarjetaRfid)
+   public function update(Request $request, TarjetaRfid $tarjetaRfid)
     {
-        $request->validate([
-            'activa' => 'required|boolean'
+        // Validamos que los campos sean 'opcionales' (sometimes)
+        // pero si vienen, deben cumplir las reglas.
+        $validated = $request->validate([
+            'activa' => 'sometimes|boolean',
+            'usuario_id' => 'sometimes|required|exists:usuarios,id'
+            // No permitimos editar el UID, ya que es la "llave" física
         ]);
 
-        $tarjetaRfid->update(['activa' => $request->activa]);
+        // Si no se envió ningún dato válido, no hacemos nada
+        if (empty($validated)) {
+             return response()->json(['mensaje' => 'No se proporcionaron datos para actualizar'], 400);
+        }
 
-        return response()->json($tarjetaRfid);
+        $tarjetaRfid->update($validated);
+
+        // Devolvemos la tarjeta actualizada con su usuario
+        return response()->json($tarjetaRfid->load('usuario'));
     }
 
     public function destroy(TarjetaRfid $tarjetaRfid)
@@ -97,4 +107,5 @@ public function verificarAcceso(Request $request)
         'mensaje' => 'Acceso permitido'
     ]);
 }
+
 }
